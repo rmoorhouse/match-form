@@ -19,7 +19,7 @@
       background: #fff;
       border: 2px solid #000;
       padding: 0;
-      overflow: hidden;
+      overflow: visible;
     }
 
     /* Header */
@@ -119,6 +119,13 @@
     }
     .player-table input:focus { outline: none; background: #fffde7; }
     .player-table input[type="number"] { text-align: center; }
+    .player-table input.shirt-input {
+      text-align: center;
+      width: 100%;
+    }
+    .player-table input.player-input {
+      width: 100%;
+    }
 
     /* Column widths */
     .col-shirt { width: 10%; }
@@ -182,6 +189,11 @@
       width: 100%;
     }
     .subs-table input:focus { outline: none; background: #fffde7; }
+    .subs-table input.sub-input {
+      text-align: center;
+      width: 100%;
+      font-size: 0.7rem;
+    }
 
     /* Captain / Coach */
     .cap-table {
@@ -317,7 +329,7 @@
     </colgroup>
     <tr>
       <td class="lbl">Home Team</td>
-      <td><input type="text" id="home-team"></td>
+      <td><input type="text" id="home-team" list="team-list" placeholder="Select..."></td>
       <td class="lbl">Score</td>
       <td><input type="number" class="score-input" id="home-score" min="0"></td>
       <td class="lbl">Date</td>
@@ -325,7 +337,7 @@
     </tr>
     <tr>
       <td class="lbl">Away Team</td>
-      <td><input type="text" id="away-team"></td>
+      <td><input type="text" id="away-team" list="team-list" placeholder="Select..."></td>
       <td class="lbl">Score</td>
       <td><input type="number" class="score-input" id="away-score" min="0"></td>
       <td class="lbl">Venue</td>
@@ -379,27 +391,27 @@
       <td class="s-hdr">7</td>
       <td class="s-hdr">8</td>
     </tr>
-    <tr>
+    <tr id="subs-on-row">
       <td class="s-lbl">No. On</td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
     </tr>
-    <tr>
+    <tr id="subs-off-row">
       <td class="s-lbl">No. Off</td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
-      <td><input type="text"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
+      <td><input class="sub-input" list="shirt-list"></td>
     </tr>
   </table>
 
@@ -439,6 +451,14 @@
     </div>
   </div>
 
+  <!-- Datalists for autocomplete -->
+  <datalist id="team-list"></datalist>
+  <datalist id="player-list"></datalist>
+  <datalist id="shirt-list"></datalist>
+  <datalist id="shirt-nums">
+    <script>for(let i=0;i<=99;i++)document.write(`<option value="${i}">`);</script>
+  </datalist>
+
   <!-- Footer -->
   <div class="footer-note">
     Top Copy = LKA &nbsp; 2<sup>nd</sup> Copy = Opposition &nbsp; 3<sup>rd</sup> Copy = Club
@@ -457,32 +477,112 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <script>
+  const SHEET_ID = '1xrT1XGmqHGZeWFoisaSBoZHZGktZvoRm1C_UbxFVCnk';
+  const SHEETS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=`;
+
+  let allPlayers = [];
+
   document.getElementById('match-date').valueAsDate = new Date();
 
   const tbody = document.getElementById('players-body');
   const NUM_STARTERS = 8;
   const NUM_SUBS = 8;
 
+  // Build empty rows
   for (let i = 0; i < NUM_STARTERS + NUM_SUBS; i++) {
     const tr = document.createElement('tr');
     const isSub = i >= NUM_STARTERS;
-    const playedText = isSub ? 'Y/N' : 'Y';
 
     tr.innerHTML = `
-      <td><input type="text" style="text-align:center"></td>
+      <td><input type="text" class="shirt-input" list="shirt-nums" oninput="updateSubList()" inputmode="numeric"></td>
       <td class="name-cell">
         ${isSub ? '<span class="sub-prefix">Sub: </span>' : ''}
-        <input type="text" style="width:${isSub ? 'calc(100% - 1.8rem)' : '100%'}">
+        <input type="text" class="player-input" list="player-list" style="width:${isSub ? 'calc(100% - 1.8rem)' : '100%'}">
       </td>
-      <td>
-        <button class="played-btn ${isSub ? 'no' : ''}" onclick="togglePlayed(this, ${isSub})">${playedText}</button>
-      </td>
+      <td>${isSub
+        ? `<button class="played-btn no" onclick="togglePlayed(this, true)">Y/N</button>`
+        : `<span style="font-weight:700">Y</span>`
+      }</td>
       <td><input type="number" min="0"></td>
       <td><input type="text" style="text-align:center"></td>
       <td><input type="text" style="text-align:center"></td>
     `;
     tbody.appendChild(tr);
   }
+
+  // Load teams + players from Google Sheet
+  async function loadFromSheet() {
+    try {
+      const resp = await fetch(SHEETS_URL + encodeURIComponent('Players'));
+      const text = await resp.text();
+      const json = JSON.parse(text.match(/google\.visualization\.Query\.setResponse\((.+)\);?/)[1]);
+      const cols = json.table.cols.map(c => c.label);
+
+      allPlayers = json.table.rows
+        .map(row => {
+          const obj = {};
+          row.c.forEach((cell, i) => { obj[cols[i]] = cell ? (cell.v ?? '') : ''; });
+          return obj;
+        })
+        .filter(p => p['Name']);
+
+      // Get unique teams
+      const teams = [...new Set(allPlayers.map(p => p['Team']))].sort();
+
+      // Populate team datalist
+      const teamList = document.getElementById('team-list');
+      teams.forEach(team => {
+        teamList.appendChild(new Option(team));
+      });
+
+      // When team is typed/selected, populate player datalist
+      const homeInput = document.getElementById('home-team');
+      const awayInput = document.getElementById('away-team');
+      homeInput.addEventListener('change', () => fillPlayers(homeInput.value));
+      awayInput.addEventListener('change', () => fillPlayers(awayInput.value));
+
+    } catch (e) {
+      console.warn('Could not load from Google Sheet:', e.message);
+    }
+  }
+
+  function fillPlayers(teamName) {
+    const playerList = document.getElementById('player-list');
+    playerList.innerHTML = '';
+
+    if (!teamName) return;
+
+    const teamPlayers = allPlayers
+      .filter(p => p['Team'] === teamName || p['Team'] === teamName.replace(/ 1$/, ''))
+      .sort((a, b) => (a['Name'] || '').localeCompare(b['Name'] || ''));
+
+    // Also try matching without " 1" suffix
+    if (teamPlayers.length === 0) {
+      allPlayers
+        .filter(p => p['Team'].replace(/ 1$/, '') === teamName.replace(/ 1$/, ''))
+        .sort((a, b) => (a['Name'] || '').localeCompare(b['Name'] || ''))
+        .forEach(p => teamPlayers.push(p));
+    }
+
+    teamPlayers.forEach(p => {
+      playerList.appendChild(new Option(p['Name']));
+    });
+  }
+
+  // Update subs datalist with assigned shirt numbers
+  function updateSubList() {
+    const shirtInputs = tbody.querySelectorAll('.shirt-input');
+    const shirtList = document.getElementById('shirt-list');
+    shirtList.innerHTML = '';
+
+    shirtInputs.forEach(input => {
+      if (input.value.trim()) {
+        shirtList.appendChild(new Option(input.value.trim()));
+      }
+    });
+  }
+
+  loadFromSheet();
 
   function togglePlayed(btn, isSub) {
     if (isSub) {
@@ -538,11 +638,14 @@
       const canvas = await html2canvas(page, {
         scale: 2,
         backgroundColor: '#ffffff',
-        useCORS: true
+        useCORS: true,
+        scrollY: -window.scrollY
       });
 
       canvas.toBlob(async (blob) => {
-        const fileName = `${document.getElementById('home-team').value || 'Home'}_vs_${document.getElementById('away-team').value || 'Away'}_${document.getElementById('match-date').value || 'match'}.png`;
+        const homeName = document.getElementById('home-team').value || 'Home';
+        const awayName = document.getElementById('away-team').value || 'Away';
+        const fileName = `${homeName}_vs_${awayName}_${document.getElementById('match-date').value || 'match'}.png`;
 
         // Try native share (mobile)
         if (navigator.share && navigator.canShare) {
@@ -575,9 +678,10 @@
     if (confirm('Clear the entire form?')) {
       document.querySelectorAll('input').forEach(i => i.value = '');
       document.querySelectorAll('textarea').forEach(t => t.value = '');
-      document.querySelectorAll('.played-btn').forEach((btn, i) => {
-        if (i < NUM_STARTERS) { btn.textContent = 'Y'; btn.className = 'played-btn'; }
-        else { btn.textContent = 'Y/N'; btn.className = 'played-btn no'; }
+      document.getElementById('player-list').innerHTML = '';
+      document.getElementById('shirt-list').innerHTML = '';
+      document.querySelectorAll('.played-btn').forEach(btn => {
+        btn.textContent = 'Y/N'; btn.className = 'played-btn no';
       });
       ['sig-home', 'sig-away', 'sig-ref'].forEach(id => {
         const c = document.getElementById(id);
@@ -604,13 +708,15 @@
 
     rows.forEach((row, i) => {
       const inputs = row.querySelectorAll('input');
+      // inputs: [0]=shirt, [1]=player name, [2]=goals, [3]=u18, [4]=card
       const playedBtn = row.querySelector('.played-btn');
+      const played = i < NUM_STARTERS ? 'Y' : (playedBtn ? playedBtn.textContent.trim() : '');
       if (inputs[1].value.trim()) {
         data.players.push({
           type: i < NUM_STARTERS ? 'starter' : 'sub',
           shirt: inputs[0].value,
           name: inputs[1].value,
-          played: playedBtn.textContent.trim(),
+          played,
           goals: inputs[2].value || '0',
           u18: inputs[3].value || '',
           card: inputs[4].value || ''
@@ -618,12 +724,13 @@
       }
     });
 
-    const subInputs = document.querySelectorAll('.subs-table input');
+    const onInputs = document.querySelectorAll('#subs-on-row .sub-input');
+    const offInputs = document.querySelectorAll('#subs-off-row .sub-input');
     data.subsOn = [];
     data.subsOff = [];
     for (let i = 0; i < 8; i++) {
-      if (subInputs[i].value) data.subsOn.push(subInputs[i].value);
-      if (subInputs[i + 8].value) data.subsOff.push(subInputs[i + 8].value);
+      if (onInputs[i].value) data.subsOn.push(onInputs[i].value);
+      if (offInputs[i].value) data.subsOff.push(offInputs[i].value);
     }
 
     // Save signatures as data URLs
