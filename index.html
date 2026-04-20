@@ -7,7 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Times New Roman', Times, serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #e8e8e8;
       color: #000;
       padding: 0.5rem;
@@ -476,8 +476,20 @@
 <!-- Actions -->
 <div class="actions">
   <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
-  <button class="btn btn-primary" onclick="shareScreenshot()">Share</button>
+  <button class="btn btn-secondary" onclick="loadForm()">Load</button>
   <button class="btn btn-secondary" onclick="saveForm()">Save</button>
+  <button class="btn btn-primary" onclick="shareScreenshot()">Share</button>
+</div>
+
+<!-- Load modal -->
+<div id="load-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; padding:1rem;">
+  <div style="max-width:500px; margin:2rem auto; background:#fff; border-radius:8px; overflow:hidden;">
+    <div style="padding:0.75rem 1rem; background:#1a1a1a; color:#fff; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+      <span>Saved Matches</span>
+      <button onclick="document.getElementById('load-modal').style.display='none'" style="background:none; border:none; color:#fff; font-size:1.2rem; cursor:pointer;">&times;</button>
+    </div>
+    <div id="saved-list" style="padding:0.5rem; max-height:60vh; overflow-y:auto;"></div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -713,6 +725,96 @@
     }
   }
 
+  function loadForm() {
+    const modal = document.getElementById('load-modal');
+    const list = document.getElementById('saved-list');
+    list.innerHTML = '';
+
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('match_')) keys.push(key);
+    }
+
+    if (keys.length === 0) {
+      list.innerHTML = '<p style="padding:1rem; color:#666; text-align:center;">No saved matches</p>';
+      modal.style.display = 'block';
+      return;
+    }
+
+    keys.sort().reverse();
+    keys.forEach(key => {
+      const data = JSON.parse(localStorage.getItem(key));
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:0.6rem 0.75rem; border-bottom:1px solid #eee; cursor:pointer; display:flex; justify-content:space-between; align-items:center;';
+      div.innerHTML = `
+        <div>
+          <strong>${data.homeTeam || 'Home'} vs ${data.awayTeam || 'Away'}</strong><br>
+          <span style="font-size:0.75rem; color:#666;">${data.date || 'No date'}${data.homeScore || data.awayScore ? ' — ' + (data.homeScore||0) + '-' + (data.awayScore||0) : ''}</span>
+        </div>
+        <button onclick="event.stopPropagation(); deleteMatch('${key}')" style="background:none; border:none; color:#c00; cursor:pointer; font-size:0.8rem;">Delete</button>
+      `;
+      div.addEventListener('click', () => { restoreForm(data); modal.style.display = 'none'; });
+      list.appendChild(div);
+    });
+
+    modal.style.display = 'block';
+  }
+
+  function deleteMatch(key) {
+    if (confirm('Delete this match?')) {
+      localStorage.removeItem(key);
+      loadForm();
+    }
+  }
+
+  function restoreForm(data) {
+    document.getElementById('home-team').value = data.homeTeam || '';
+    document.getElementById('away-team').value = data.awayTeam || '';
+    document.getElementById('home-score').value = data.homeScore || '';
+    document.getElementById('away-score').value = data.awayScore || '';
+    document.getElementById('match-date').value = data.date || '';
+    document.getElementById('venue').value = data.venue || '';
+    document.getElementById('referee').value = data.referee || '';
+    document.getElementById('captain').value = data.captain || '';
+    document.getElementById('coach').value = data.coach || '';
+
+    // Fill player rows
+    const rows = tbody.querySelectorAll('tr');
+    if (data.players) {
+      data.players.forEach((p, i) => {
+        if (i >= rows.length) return;
+        const inputs = rows[i].querySelectorAll('input');
+        inputs[0].value = p.shirt || '';
+        inputs[1].value = p.name || '';
+        inputs[2].value = p.goals > 0 ? p.goals : '';
+        const u18 = rows[i].querySelector('.u18-check');
+        if (u18) u18.checked = !!p.u18;
+        inputs[3].value = p.card || '';
+
+        // Set played button for subs
+        const playedBtn = rows[i].querySelector('.played-btn');
+        if (playedBtn) {
+          playedBtn.textContent = p.played || 'Y/N';
+          playedBtn.className = 'played-btn' + (p.played === 'Y' ? '' : ' no');
+        }
+      });
+    }
+
+    // Fill subs on/off
+    const onInputs = document.querySelectorAll('#subs-on-row .sub-input');
+    const offInputs = document.querySelectorAll('#subs-off-row .sub-input');
+    if (data.subsOn) data.subsOn.forEach((v, i) => { if (onInputs[i]) onInputs[i].value = v; });
+    if (data.subsOff) data.subsOff.forEach((v, i) => { if (offInputs[i]) offInputs[i].value = v; });
+
+    // Ref notes
+    const refNotes = document.getElementById('ref-notes');
+    if (refNotes && data.refNotes) refNotes.value = data.refNotes;
+
+    updateSubList();
+    updateCaptainList();
+  }
+
   function saveForm() {
     const rows = document.querySelectorAll('#players-body tr');
     const data = {
@@ -755,6 +857,8 @@
       if (onInputs[i].value) data.subsOn.push(onInputs[i].value);
       if (offInputs[i].value) data.subsOff.push(offInputs[i].value);
     }
+
+    data.refNotes = document.getElementById('ref-notes').value;
 
     // Save signatures as data URLs
     data.signatures = {};
