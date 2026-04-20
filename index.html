@@ -450,8 +450,11 @@
 <div class="actions">
   <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
   <button class="btn btn-secondary" onclick="window.print()">Print</button>
-  <button class="btn btn-primary" onclick="saveForm()">Save</button>
+  <button class="btn btn-primary" onclick="shareScreenshot()">Share</button>
+  <button class="btn btn-secondary" onclick="saveForm()">Save</button>
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <script>
   document.getElementById('match-date').valueAsDate = new Date();
@@ -525,6 +528,48 @@
     canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
     canvas.addEventListener('touchend', () => drawing = false);
   });
+
+  async function shareScreenshot() {
+    const page = document.querySelector('.page');
+    const actions = document.querySelector('.actions');
+    actions.style.display = 'none';
+
+    try {
+      const canvas = await html2canvas(page, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true
+      });
+
+      canvas.toBlob(async (blob) => {
+        const fileName = `${document.getElementById('home-team').value || 'Home'}_vs_${document.getElementById('away-team').value || 'Away'}_${document.getElementById('match-date').value || 'match'}.png`;
+
+        // Try native share (mobile)
+        if (navigator.share && navigator.canShare) {
+          const file = new File([blob], fileName, { type: 'image/png' });
+          try {
+            await navigator.share({ files: [file], title: 'Match Form' });
+            actions.style.display = 'flex';
+            return;
+          } catch (e) {
+            // User cancelled or share failed, fall through to download
+          }
+        }
+
+        // Fallback: download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } catch (e) {
+      alert('Screenshot failed: ' + e.message);
+    }
+
+    actions.style.display = 'flex';
+  }
 
   function clearForm() {
     if (confirm('Clear the entire form?')) {
